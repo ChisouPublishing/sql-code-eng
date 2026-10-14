@@ -1,0 +1,10 @@
+# Local database files and logs are not version-controlled
+pgdata/
+bench/log.txt
+evidence/
+tools/
+backup/
+CHANGELOG.md
+VALIDATION.md
+VERSION
+.DS_Store

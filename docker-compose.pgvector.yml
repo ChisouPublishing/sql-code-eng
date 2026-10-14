@@ -1,0 +1,5 @@
+# Override for Chapter 15 (pgvector).
+# Usage: docker compose -f docker-compose.yml -f docker-compose.pgvector.yml up -d
+services:
+  postgres:
+    image: pgvector/pgvector:pg18

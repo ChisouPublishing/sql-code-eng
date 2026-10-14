@@ -1,0 +1,24 @@
+# English-only verification environment; independent of the Japanese server.
+services:
+  postgres:
+    image: pgvector/pgvector:pg18
+    container_name: sakura_eng_verify_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sakura
+      POSTGRES_PASSWORD: sakura_dev
+      POSTGRES_DB: postgres
+      TZ: America/New_York
+      PGTZ: America/New_York
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - eng_verify_data:/var/lib/postgresql
+    command: ["postgres", "-c", "io_method=worker", "-c", "shared_preload_libraries=pg_stat_statements", "-c", "log_min_duration_statement=200", "-c", "log_line_prefix=%m [%p] %q%u@%d ", "-c", "shared_buffers=256MB", "-c", "work_mem=16MB", "-c", "pg_stat_statements.max=10000", "-c", "pg_stat_statements.track=all"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sakura -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+volumes:
+  eng_verify_data:

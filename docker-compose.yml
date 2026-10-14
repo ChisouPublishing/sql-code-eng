@@ -1,0 +1,104 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: sakura_market_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sakura
+      POSTGRES_PASSWORD: sakura_dev
+      POSTGRES_DB: sakura_market
+      # Business days follow US Eastern Time
+      TZ: America/New_York
+      PGTZ: America/New_York
+    ports:
+      - "5432:5432"
+    volumes:
+      # PostgreSQL 18 mounts at /var/lib/postgresql (mounting directly at .../data does not work).
+      # ./init does not run automatically (load it explicitly with make init-small).
+      # You can add - ./init:/docker-entrypoint-initdb.d:ro,
+      # but then the data is loaded twice if you also run make.
+      - ./pgdata:/var/lib/postgresql
+    command:
+      - "postgres"
+      # io_method: the default is worker (asynchronous I/O in PostgreSQL 18; Chapter 12).
+      # io_uring is a Linux kernel feature. Docker Desktop and OrbStack on macOS cannot use it.
+      # Change worker to io_uring only when you reproduce the tests on a Linux server.
+      - "-c"
+      - "io_method=worker"
+      - "-c"
+      - "log_min_duration_statement=200"
+      - "-c"
+      - "log_line_prefix=%m [%p] %q%u@%d "
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "work_mem=16MB"
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "pg_stat_statements.max=10000"
+      - "-c"
+      - "pg_stat_statements.track=all"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sakura -d sakura_market"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Connection pool PgBouncer (Chapter 13). Not started by default (profile: pool).
+  # Start: docker compose --profile pool up -d pgbouncer   (make pool-up)
+  # Connect: host=localhost port=6432 (between containers: host=sakura_pgbouncer port=5432)
+  # Development settings: plain-text password authentication (AUTH_TYPE=plain).
+  # In production, use scram-sha-256 and auth_query.
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.26.0-p0
+    container_name: sakura_pgbouncer
+    profiles: ["pool"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: sakura
+      DB_PASSWORD: sakura_dev
+      AUTH_TYPE: plain
+      # transaction: lend a server connection only for the length of a transaction
+      # (SET and temporary tables do not carry over)
+      POOL_MODE: transaction
+      # At most 20 server (PostgreSQL) connections per database and user
+      DEFAULT_POOL_SIZE: "20"
+      # Accept up to 1000 application (client) connections (more than max_connections=100 is fine)
+      MAX_CLIENT_CONN: "1000"
+      # Lets pgbench -M prepared work in transaction mode (PgBouncer 1.21+)
+      MAX_PREPARED_STATEMENTS: "100"
+      LISTEN_PORT: "5432"
+    ports:
+      - "6432:5432"
+
+  # Monitoring screens pgAdmin 4 (Chapters 11, 13, 14 "Check on screen"). Not started by default (profile: monitor).
+  # Start: make monitor-up, then open http://localhost:5050 (no login screen; local use only).
+  # Left tree: Sakura Market -> sakura_market (small + medium) / sakura_xl (benchmark).
+  pgadmin:
+    image: dpage/pgadmin4:9.18
+    container_name: sakura_pgadmin
+    profiles: ["monitor"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: sakura_dev
+      # Desktop mode (no login screen and no master password; local use only)
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      # Do not check the pgAdmin site for updates
+      PGADMIN_CONFIG_UPGRADE_CHECK_ENABLED: "False"
+      PGADMIN_SERVER_JSON_FILE: /pgadmin4/servers.json
+    # libpq reads pgpass only when its mode is 600, so copy it into the container before starting
+    entrypoint: ["/bin/sh", "-c", "cp /pgadmin4/pgpass.src /var/lib/pgadmin/pgpass && chmod 600 /var/lib/pgadmin/pgpass && exec /entrypoint.sh"]
+    volumes:
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - ./pgadmin/pgpass:/pgadmin4/pgpass.src:ro
+    ports:
+      - "127.0.0.1:5050:80"

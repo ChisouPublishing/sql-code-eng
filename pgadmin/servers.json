@@ -1,0 +1,26 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "sakura_market (small + medium)",
+      "Group": "Sakura Market",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "sakura_market",
+      "Username": "sakura",
+      "PassFile": "/var/lib/pgadmin/pgpass",
+      "SSLMode": "prefer",
+      "Comment": "Chapters 4-9 and 15 (the compose postgres service)"
+    },
+    "2": {
+      "Name": "sakura_xl (benchmark)",
+      "Group": "Sakura Market",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "sakura_xl",
+      "Username": "sakura",
+      "PassFile": "/var/lib/pgadmin/pgpass",
+      "SSLMode": "prefer",
+      "Comment": "Chapters 10-14 (10 million orders; another database on the same PostgreSQL)"
+    }
+  }
+}
